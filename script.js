@@ -1,36 +1,53 @@
 const video = document.getElementById('video');
-const canvas = document.querySelector('.face');
+const canvas = document.getElementById('canvas');
 const context = canvas.getContext('2d');
+const fileInput = document.getElementById('fileInput');
+const uploadButton = document.getElementById('uploadButton');
 
-async function startWebcam() {
-  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-    });
-    video.srcObject = stream;
-    await video.play();
+const uploadFile = file => {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', 'https://example.com/upload');
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        resolve(xhr.response);
+      } else {
+        reject(xhr.statusText);
+      }
+    };
+    xhr.onerror = () => reject(xhr.statusText);
+    xhr.send(file);
+  });
+};
 
-    requestAnimationFrame(detectFaces);
+const render = () => {
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const options = {};
+  const faces = faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions(options)).map(face => {
+    const { x, y, width, height } = face.boundingBox;
+    context.clearRect(x, y, width, height);
+    context.drawImage(video, x, y, width, height, x, y, width, height);
+  });
+  requestAnimationFrame(render);
+};
+
+navigator.mediaDevices.getUserMedia({ video: {} }).then(stream => {
+  video.srcObject = stream;
+  requestAnimationFrame(render);
+});
+
+uploadButton.addEventListener('click', () => {
+  fileInput.click();
+});
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  if (!file) {
+    return alert('Please select a file to upload.');
   }
-}
 
-async function detectFaces() {
-  const faces = await window.faceapi.detectAllFaces(video).withFaceLandmarks().withFaceExpressions();
-
-  context.clearRect(0, 0, canvas.width, canvas.height);
-
-  for (let i = 0; i < faces.length; i++) {
-    const face = faces[i];
-
-    context.drawImage(
-      video,
-      face.detection.box._x,
-      face.detection.box._y,
-      face.detection.box._width,
-      face.detection.box._height,
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
-  }
+  uploadFile(file)
+    .then(response => {
